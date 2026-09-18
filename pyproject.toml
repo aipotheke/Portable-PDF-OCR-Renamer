@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-ocr-renamer"
+version = "0.1.0"
+description = "Portable Windows tool: watch a folder, OCR new PDFs with the IONOS AI Model Hub, rename to date_filetype_oldname.pdf"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pypdfium2>=4.30",
+    "pypdf>=4.3",
+    "openai>=1.40",
+    "watchdog>=4.0",
+    "pystray>=0.19",
+    "aiohttp>=3.10",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+pdf-ocr-renamer = "app.main:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

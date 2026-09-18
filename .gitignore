@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+*.spec.bak
+config.json
+processed.json
+app.log
+.venv/
+venv/

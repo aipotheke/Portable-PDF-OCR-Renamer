@@ -1,40 +1,70 @@
-# hidrive_copy
+# Portable PDF OCR Renamer
 
-Copy files from an **IONOS HiDrive** folder to the local filesystem, using the
-HiDrive REST API (`https://api.hidrive.strato.com/2.1`). Stdlib-only, one file.
+A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype_oldname.pdf`, embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
 
-The auth token is loaded from `.env` (via `python-dotenv`) as `HIDRIVE_TOKEN`.
+> Status: **M1 — Core pipeline (manual, no watcher)**. Watcher, web UI, tray icon and PyInstaller build are planned in later milestones.
 
-## Setup
+## M1 scope
+
+- `ocr.py` — render PDF pages with pypdfium2, base64-encode, call the IONOS OCR endpoint via the `openai` client (one request per page), join page outputs; classify the document type via a text model.
+- `rules.py` — date extraction from file creation time (`st_ctime` on Windows); processed-registry (`processed.json`) read/write to skip already-handled files.
+- `pdfops.py` — write the renamed PDF to a `processed/` subfolder, embed `ocr.md` as a PDF attachment, write a sidecar `.md` to an `md/` subfolder, atomic writes, Windows-safe filename sanitization, never overwrite existing targets.
+- `config.py` — load/save `config.json` next to the exe with sensible defaults.
+- CLI: `python -m app.main --once FILE` processes a single file end-to-end.
+
+The watcher, web UI and tray icon are **not** implemented yet.
+
+## Configuration
+
+`config.json` is created next to the exe (or the project root in dev) on first run. Defaults:
+
+```json
+{
+  "ionos_api_key": "",
+  "ionos_base_url": "https://openai.inference.de-txl.ionos.com/v1",
+  "ocr_model": "lightonai/LightOnOCR-2-1B",
+  "classify_model": "mistralai/Mistral-Small-24B-Instruct-2501",
+  "watch_folder": "",
+  "doc_types": ["invoice", "letter", "receipt", "contract", "other"],
+  "render_scale": 2.0,
+  "ocr_max_tokens": 4096,
+  "ocr_temperature": 0.2,
+  "request_timeout": 120,
+  "max_retries": 4,
+  "keep_md_sidecar": true
+}
+```
+
+The API key is read from the env var `IONOS_API_TOKEN` if `ionos_api_key` in config is empty.
+
+## Usage (M1)
 
 ```bash
-pip install python-dotenv
+# install deps (editable)
+pip install -e ".[test]"
+
+# process a single file
+python -m app.main --once path/to/scan.pdf
+
+# run unit tests
+pytest
 ```
 
-Copy `.env.example` to `.env` and fill in your token:
+The IONOS API token must be available via the `IONOS_API_TOKEN` environment variable (or set in `config.json`).
 
-```
-HIDRIVE_TOKEN=your_oauth2_access_token
-```
+## Target filename
 
-It's an OAuth2 access token from the HiDrive OAuth2 server. See the
-[Get Started](https://developer.hidrive.com/get-started/) guide to obtain one.
+`YYYY-MM-DD_filetype_oldname.pdf` — e.g. `2026-09-17_invoice_scan0231.pdf`
 
-## Usage
+- `date` = file creation date (`st_ctime` on Windows).
+- `filetype` = one of the configured doc types, chosen by the classification model; `unknown` on failure.
+- `oldname` = sanitized original stem (Windows-illegal chars removed).
 
-```python
-from hidrive_copy import copy_folder, download_file, list_dir
+Renamed PDFs and `ocr.md` attachments go to `processed/`; Markdown sidecars go to `md/` next to the source.
 
-copy_folder("/users/me/photos", "./local-photos")
-download_file("/users/me/photos/cat.jpg", "./cat.jpg")
+## Notes
 
-for entry in list_dir("/users/me/photos"):
-    print(entry["type"], entry["name"])
-```
-
-## How it works
-
-- `GET /dir?path=...&members=all&fields=members.name,members.type` lists a
-  directory (paginated, URL-encoded names decoded).
-- `GET /file?path=...` streams the file bytes to disk.
-- Subdirectories are mirrored; symlinks are skipped.
+- Classification uses `mistralai/Mistral-Small-24B-Instruct-2501` (configurable). Reasoning-class models like gpt-oss-120b work but are more expensive for a labelling task.
+- OCR is one API request per page, sequential. No batching (by design).
+- The `processed.json` registry lives next to the exe alongside `config.json`.
+- A signed exe may trigger SmartScreen warnings; see M5 in the build plan.
