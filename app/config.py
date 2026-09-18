@@ -12,7 +12,7 @@ DEFAULTS: dict[str, Any] = {
     "ionos_api_key": "",
     "ionos_base_url": "https://openai.inference.de-txl.ionos.com/v1",
     "ocr_model": "lightonai/LightOnOCR-2-1B",
-    "classify_model": "mistralai/Mistral-Small-24B-Instruct-2501",
+    "classify_model": "mistralai/Mistral-Small-24B-Instruct",
     "watch_folder": "",
     "doc_types": ["invoice", "letter", "receipt", "contract", "other"],
     "render_scale": 2.0,
@@ -21,6 +21,8 @@ DEFAULTS: dict[str, Any] = {
     "request_timeout": 120,
     "max_retries": 4,
     "keep_md_sidecar": True,
+    "stability_seconds": 3.0,
+    "stability_max_wait": 120.0,
 }
 
 CONFIG_FILENAME = "config.json"

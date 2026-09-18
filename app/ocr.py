@@ -121,7 +121,7 @@ def classify(markdown: str, doc_types: list[str], cfg: dict[str, Any]) -> str:
         return "unknown"
 
     client = _make_client(cfg)
-    model = cfg.get("classify_model", "mistralai/Mistral-Small-24B-Instruct-2501")
+    model = cfg.get("classify_model", "mistralai/Mistral-Small-24B-Instruct")
     max_retries = int(cfg.get("max_retries", 4))
     allowed = ", ".join(types)
     prompt = (
@@ -147,6 +147,9 @@ def classify(markdown: str, doc_types: list[str], cfg: dict[str, Any]) -> str:
     except Exception as exc:
         log.warning("Classification call failed: %s — falling back to 'unknown'", exc)
         return "unknown"
+
+    log.info("LLM classify answer: %r", answer)
+    print(f"LLM classify answer: {answer!r}")
 
     matched = match_type(answer, types)
     if matched is None:

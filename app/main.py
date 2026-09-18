@@ -1,7 +1,8 @@
 """Entrypoint for the PDF OCR Renamer.
 
-M1: `python -m app.main --once FILE` processes a single PDF end-to-end. The watcher,
-web UI and tray icon are added in later milestones.
+M1: `python -m app.main --once FILE` processes a single PDF end-to-end.
+M2: `python -m app.main --watch` starts the folder watcher with its single-worker
+queue (Ctrl+C to stop). Web UI and tray icon are added in later milestones.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 
 from . import ocr, pdfops, rules
@@ -55,6 +57,7 @@ def process_one(pdf_path: Path, cfg: dict | None = None) -> Path | None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.main", description="Portable PDF OCR Renamer")
     parser.add_argument("--once", metavar="FILE", help="process a single PDF and exit")
+    parser.add_argument("--watch", action="store_true", help="watch the configured folder for new PDFs (Ctrl+C to stop)")
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     args = parser.parse_args(argv)
 
@@ -74,6 +77,21 @@ def main(argv: list[str] | None = None) -> int:
             log.exception("Processing failed")
             print(f"Error: {exc}", file=sys.stderr)
             return 1
+        return 0
+
+    if args.watch:
+        from .watcher import FolderWatcher
+
+        cfg = load_config()
+        watcher = FolderWatcher(cfg)
+        watcher.start()
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            watcher.stop()
         return 0
 
     parser.print_help()
