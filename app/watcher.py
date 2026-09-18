@@ -121,6 +121,7 @@ class FolderWatcher:
         self._stop = threading.Event()
         self.observer: Observer | None = None
         self.worker: threading.Thread | None = None
+        self.paused = False
         self.stability_seconds = float(cfg.get("stability_seconds", 3.0))
         self.stability_max_wait = float(cfg.get("stability_max_wait", 120.0))
 
@@ -188,6 +189,27 @@ class FolderWatcher:
         log.info("Watching folder: %s", self.folder())
         print(f"Watching folder: {self.folder()}")
 
+    def pause(self) -> None:
+        """Stop processing queued jobs; events keep being enqueued."""
+        self.paused = True
+        log.info("Watcher paused")
+
+    def resume(self) -> None:
+        self.paused = False
+        log.info("Watcher resumed")
+
+    def restart_observer(self) -> None:
+        """Point the observer at the (possibly changed) watch folder."""
+        if self.observer is None:
+            return
+        self.observer.stop()
+        self.observer.join(timeout=5)
+        self.observer = Observer()
+        self.observer.schedule(_PDFEventHandler(self), str(self.folder()), recursive=False)
+        self.observer.start()
+        log.info("Now watching folder: %s", self.folder())
+        print(f"Now watching folder: {self.folder()}")
+
     def stop(self) -> None:
         self._stop.set()
         if self.observer is not None:
@@ -216,6 +238,10 @@ class FolderWatcher:
             if item is None:
                 break
             path = Path(item)
+            while self.paused and not self._stop.is_set():
+                time.sleep(0.2)
+            if self._stop.is_set():
+                break
             try:
                 self._handle(path)
             except Exception:

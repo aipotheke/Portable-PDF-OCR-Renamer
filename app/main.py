@@ -2,7 +2,9 @@
 
 M1: `python -m app.main --once FILE` processes a single PDF end-to-end.
 M2: `python -m app.main --watch` starts the folder watcher with its single-worker
-queue (Ctrl+C to stop). Web UI and tray icon are added in later milestones.
+queue (Ctrl+C to stop).
+M3: `python -m app.main --serve` starts the watcher plus the web UI at
+http://127.0.0.1:8765 (Ctrl+C to stop). Tray icon is added in a later milestone.
 """
 
 from __future__ import annotations
@@ -58,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.main", description="Portable PDF OCR Renamer")
     parser.add_argument("--once", metavar="FILE", help="process a single PDF and exit")
     parser.add_argument("--watch", action="store_true", help="watch the configured folder for new PDFs (Ctrl+C to stop)")
+    parser.add_argument("--serve", action="store_true", help="watcher + web UI at http://127.0.0.1:8765 (Ctrl+C to stop)")
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     args = parser.parse_args(argv)
 
@@ -92,6 +95,21 @@ def main(argv: list[str] | None = None) -> int:
             pass
         finally:
             watcher.stop()
+        return 0
+
+    if args.serve:
+        from .webui.server import WebUI
+
+        cfg = load_config()
+        ui = WebUI(cfg)
+        ui.start()
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            ui.stop()
         return 0
 
     parser.print_help()

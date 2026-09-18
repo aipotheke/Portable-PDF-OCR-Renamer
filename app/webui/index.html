@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PDF OCR Renamer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 900px; padding: 1rem; }
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 1.05rem; border-bottom: 1px solid #8884; padding-bottom: .2rem; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #8883; vertical-align: top; }
+  .stage { display: inline-block; padding: 0 .5rem; border-radius: 1rem; font-size: .8rem; }
+  .done { background: #2a92a2; } .error { background: #c23e3e; color: #fff; }
+  .queued, .waiting_stable, .processing { background: #b8860b; }
+  .skipped { background: #7a7; }
+  .banner { padding: .6rem 1rem; border-radius: .5rem; margin-bottom: 1rem; }
+  .banner.warn { background: #b8860b33; border: 1px solid #b8860b; }
+  button { padding: .4rem 1rem; cursor: pointer; }
+  label { display: block; margin: .6rem 0 .2rem; font-weight: 600; }
+  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: .35rem; }
+  #msg { margin-left: 1rem; }
+  .error-text { color: #c23e3e; }
+  .ok-text { color: #2a7; }
+  .status-line { color: #888; margin: .3rem 0; }
+</style>
+</head>
+<body>
+<h1>PDF OCR Renamer</h1>
+<div id="banner"></div>
+<p class="status-line"><span id="paused"></span> Watch folder: <code id="folder"></code></p>
+
+<h2>Files</h2>
+<p>
+  <button id="scan">Process existing PDFs</button>
+  <span id="msg"></span>
+</p>
+<table id="jobs">
+  <thead><tr><th>File</th><th>Stage</th><th>Result / Error</th><th>Updated</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2>Settings</h2>
+<form id="config">
+  <label for="api_key">IONOS API key</label>
+  <input type="password" id="api_key" name="ionos_api_key" autocomplete="off">
+  <label for="watch_folder">Watch folder</label>
+  <input type="text" id="watch_folder" name="watch_folder">
+  <label for="doc_types">Document types (comma-separated)</label>
+  <input type="text" id="doc_types" name="doc_types">
+  <p>
+    <button type="submit">Save</button>
+    <span id="config-msg"></span>
+  </p>
+</form>
+
+<script>
+'use strict';
+let savedKey = '';
+
+async function fetchJSON(url, opts) {
+  const resp = await fetch(url, opts);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+  return data;
+}
+
+async function refresh() {
+  let st;
+  try { st = await fetchJSON('/api/status'); } catch { return; }
+  document.getElementById('paused').textContent = st.paused ? '⏸ Paused.' : '▶ Watching.';
+  document.getElementById('folder').textContent = st.watch_folder || '(exe folder)';
+  const banner = document.getElementById('banner');
+  if (!st.has_api_key) {
+    banner.innerHTML = '<div class="banner warn"><b>Setup:</b> enter your IONOS API key below and save. The watcher idles until a key is set.</div>';
+  } else {
+    banner.innerHTML = '';
+  }
+  const tb = document.querySelector('#jobs tbody');
+  tb.innerHTML = (st.jobs || []).map(j => `
+    <tr>
+      <td>${(j.name || '').replace(/</g, '&lt;')}</td>
+      <td><span class="stage ${j.stage || ''}">${j.stage || ''}</span></td>
+      <td class="${j.stage === 'error' ? 'error-text' : ''}">${(j.error || j.result || '').replace(/</g, '&lt;')}</td>
+      <td>${j.updated || ''}</td>
+    </tr>`).join('');
+}
+
+async function loadConfig() {
+  try {
+    const cfg = await fetchJSON('/api/config');
+    savedKey = cfg.ionos_api_key || '';
+    document.getElementById('api_key').value = savedKey;
+    document.getElementById('watch_folder').value = cfg.watch_folder || '';
+    document.getElementById('doc_types').value = (cfg.doc_types || []).join(', ');
+  } catch (e) {
+    document.getElementById('config-msg').textContent = String(e);
+  }
+}
+
+document.getElementById('config').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const msg = document.getElementById('config-msg');
+  const keyInput = document.getElementById('api_key').value;
+  const body = {
+    watch_folder: document.getElementById('watch_folder').value.trim(),
+    doc_types: document.getElementById('doc_types').value.split(',').map(s => s.trim()).filter(Boolean),
+  };
+  if (keyInput && keyInput !== savedKey) body.ionos_api_key = keyInput;
+  try {
+    const out = await fetchJSON('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    msg.textContent = 'Saved.';
+    msg.className = 'ok-text';
+    savedKey = out.config.ionos_api_key || '';
+    document.getElementById('api_key').value = savedKey;
+  } catch (e) {
+    msg.textContent = String(e);
+    msg.className = 'error-text';
+  }
+});
+
+document.getElementById('scan').addEventListener('click', async () => {
+  const msg = document.getElementById('msg');
+  try {
+    const out = await fetchJSON('/api/scan', {method: 'POST'});
+    msg.textContent = `Queued ${out.queued} file(s).`;
+  } catch (e) {
+    msg.textContent = String(e);
+  }
+});
+
+loadConfig();
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

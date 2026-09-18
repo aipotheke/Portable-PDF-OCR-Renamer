@@ -2,7 +2,7 @@
 
 A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype_oldname.pdf`, embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
 
-> Status: **M2 — Watcher + queue**. Core pipeline (M1) plus folder watching with a single-worker queue. Web UI, tray icon and PyInstaller build are planned in later milestones.
+> Status: **M3 — Web UI**. Core pipeline (M1), folder watcher (M2), plus a local browser UI. Tray icon and PyInstaller build are planned in later milestones.
 
 ## M1 scope
 
@@ -18,9 +18,21 @@ A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs 
 - Stability check — a job starts only after a file's size and mtime stayed unchanged for `stability_seconds` (default 3 s, max wait `stability_max_wait`); slow scanner writes and copy-ins never get partially OCR'd.
 - Single worker thread — sequential OCR, API-friendly; per-file errors are caught, logged and recorded, and never crash the worker.
 - Job status — every file has a stage (`queued` → `waiting_stable` → `processing` → `done`/`skipped`/`error`) with a timestamp; `job_list()` snapshots all jobs (ready for the M3 web UI).
+- Pause/resume — the worker idles while paused; events keep being enqueued. Changing `watch_folder` restarts the observer.
 - CLI: `python -m app.main --watch` runs the watcher (Ctrl+C to stop).
 
-The web UI and tray icon are **not** implemented yet.
+## M3 scope
+
+- `webui/server.py` — local HTTP server (`http.server`) bound to **127.0.0.1:8765 only**.
+  - `GET /` — single-page UI (`webui/index.html`, vanilla JS, polls `/api/status` every 2 s).
+  - `GET /api/status` — watch folder, paused flag, API-key presence, doc types, job list.
+  - `GET /api/config` — current config with the API key masked (last 4 chars only).
+  - `POST /api/config` — validated updates (folder exists, key non-empty, ≥1 doc type, numeric fields), persisted atomically to `config.json`; live-applied (stability settings, watch folder).
+  - `POST /api/scan` — enqueue all existing PDFs in the watch folder on demand.
+- UI: setup banner when no API key is set, job table with stage badges, settings form (API key, watch folder, doc types).
+- CLI: `python -m app.main --serve` starts watcher + web UI (Ctrl+C to stop).
+
+The tray icon is **not** implemented yet.
 
 ## Configuration
 
@@ -58,6 +70,9 @@ python -m app.main --once path/to/scan.pdf
 
 # watch the configured folder for new PDFs (Ctrl+C to stop)
 python -m app.main --watch
+
+# watcher + web UI at http://127.0.0.1:8765 (Ctrl+C to stop)
+python -m app.main --serve
 
 # run unit tests
 pytest
