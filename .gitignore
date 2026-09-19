@@ -11,3 +11,4 @@ processed.json
 app.log
 .venv/
 venv/
+app.lock

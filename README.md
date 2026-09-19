@@ -2,7 +2,7 @@
 
 A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype_oldname.pdf`, embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
 
-> Status: **M4 — Tray icon + polish**. Core pipeline (M1), folder watcher (M2), web UI (M3), plus tray icon, single-instance lock and rotating log. PyInstaller build is planned in M5.
+> Status: **M5 — PyInstaller build & portability**. All milestones implemented; final Windows portability test on real hardware pending.
 
 ## M1 scope
 
@@ -104,4 +104,24 @@ Renamed PDFs and `ocr.md` attachments go to `processed/`; Markdown sidecars go t
 - Classification uses `mistralai/Mistral-Small-24B-Instruct` (configurable). Reasoning-class models like gpt-oss-120b work but are more expensive for a labelling task.
 - OCR is one API request per page, sequential. No batching (by design).
 - The `processed.json` registry lives next to the exe alongside `config.json`.
-- A signed exe may trigger SmartScreen warnings; see M5 in the build plan.
+
+## Build & portability (M5)
+
+- `build.spec` — PyInstaller **onefile + windowed** (no console). Bundles `webui/index.html` (served from `_MEIPASS` when frozen) and `assets/tray.png`. Entry via `run.py` (package-safe import of `app.main`).
+- Verified on Linux sandbox: the frozen binary runs the full app — `config.json`, `app.lock`, `app.log` are created **next to the exe**, watch folder defaults to the exe folder, web UI + config API work, a second launch is refused by the single-instance lock, and the tray degrades gracefully without a display.
+
+### Build
+
+```bash
+pip install -e .
+pip install pyinstaller
+pyinstaller build.spec --noconfirm --clean
+# -> dist/PDF-OCR-Renamer(.exe on Windows)
+```
+
+### Windows notes
+
+- Build **on Windows** for a Windows exe (PyInstaller does not cross-compile); the spec is platform-agnostic.
+- Copy the single exe anywhere (USB stick, scanner folder) and run it — no Python needed. `config.json`, `app.log`, `app.lock`, `processed.json`, `processed/` and `md/` are created next to the exe on demand.
+- **SmartScreen/AV:** the exe is unsigned, so Windows may warn on first run ("More info → Run anyway"), and some antivirus tools flag PyInstaller onefile binaries. If that is a problem, sign the exe or fall back to `--onedir` (a folder with an exe is still "no install").
+- The Windows tray icon requires `pystray`'s Win32 backend — included automatically.
