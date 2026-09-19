@@ -2,7 +2,7 @@
 
 A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype_oldname.pdf`, embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
 
-> Status: **M3 — Web UI**. Core pipeline (M1), folder watcher (M2), plus a local browser UI. Tray icon and PyInstaller build are planned in later milestones.
+> Status: **M4 — Tray icon + polish**. Core pipeline (M1), folder watcher (M2), web UI (M3), plus tray icon, single-instance lock and rotating log. PyInstaller build is planned in M5.
 
 ## M1 scope
 
@@ -32,7 +32,13 @@ A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs 
 - UI: setup banner when no API key is set, job table with stage badges, settings form (API key, watch folder, doc types).
 - CLI: `python -m app.main --serve` starts watcher + web UI (Ctrl+C to stop).
 
-The tray icon is **not** implemented yet.
+## M4 scope
+
+- `python -m app.main` (no args) runs the **full app**: single-instance check, web UI, tray icon.
+- `tray.py` — pystray menu: **Open UI** (opens the browser), **Pause/Resume**, **Quit**. Icon dims while paused. Falls back to running without a tray when no backend is available (headless/dev). Icon from `assets/tray.png` when bundled, else a generated placeholder.
+- `singleton.py` — single-instance lockfile (`app.lock`, PID-checked, stale locks cleaned up after crashes) and a rotating `app.log` (1 MB, 2 backups) next to the exe.
+- No API key set → the watcher idles: new PDFs wait in `waiting_for_key` stage until a key is saved (UI shows a setup banner); no API calls are attempted.
+- A second instance refuses to start and just opens the first instance's UI.
 
 ## Configuration
 
@@ -59,7 +65,7 @@ The tray icon is **not** implemented yet.
 
 The API key is read from the env var `IONOS_API_TOKEN` if `ionos_api_key` in config is empty.
 
-## Usage (M1)
+## Usage
 
 ```bash
 # install deps (editable)
@@ -73,6 +79,9 @@ python -m app.main --watch
 
 # watcher + web UI at http://127.0.0.1:8765 (Ctrl+C to stop)
 python -m app.main --serve
+
+# full app: single instance, web UI, tray icon (this is what the exe runs)
+python -m app.main
 
 # run unit tests
 pytest

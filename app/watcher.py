@@ -19,7 +19,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from . import rules
-from .config import config_dir
+from .config import config_dir, get_api_key
 
 
 log = logging.getLogger("watcher")
@@ -111,9 +111,11 @@ class FolderWatcher:
         self,
         cfg: dict[str, Any],
         process: Callable[[Path], Path | None] | None = None,
+        require_api_key: bool = True,
     ):
         self.cfg = cfg
         self._process = process
+        self.require_api_key = require_api_key
         self.queue: queue.Queue[Path | None] = queue.Queue()
         self._enqueued: set[str] = set()
         self._jobs: dict[str, dict[str, Any]] = {}
@@ -261,6 +263,15 @@ class FolderWatcher:
         log.info("New PDF: %s", path.name)
         print(f"New PDF: {path.name}")
         self._record(path, "waiting_stable")
+
+        while self.require_api_key and not get_api_key(self.cfg) and not self._stop.is_set():
+            if self._job_stage(path) != "waiting_for_key":
+                log.info("No API key set — idling: %s", path.name)
+                print(f"No API key set — idling: {path.name}")
+                self._record(path, "waiting_for_key")
+            time.sleep(1.0)
+        if self._stop.is_set():
+            return
 
         if not wait_for_stability(
             path,

@@ -4,7 +4,9 @@ M1: `python -m app.main --once FILE` processes a single PDF end-to-end.
 M2: `python -m app.main --watch` starts the folder watcher with its single-worker
 queue (Ctrl+C to stop).
 M3: `python -m app.main --serve` starts the watcher plus the web UI at
-http://127.0.0.1:8765 (Ctrl+C to stop). Tray icon is added in a later milestone.
+http://127.0.0.1:8765 (Ctrl+C to stop).
+M4: `python -m app.main` (no args) is the full app — single instance, web UI,
+tray icon (Open UI / Pause-Resume / Quit), rotating app.log next to the exe.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -112,7 +115,37 @@ def main(argv: list[str] | None = None) -> int:
             ui.stop()
         return 0
 
-    parser.print_help()
+    # default: full app (single instance, web UI, tray)
+    from .singleton import acquire_lock, release_lock, setup_logging
+    from .tray import start_tray
+    from .webui.server import WebUI
+
+    if not acquire_lock():
+        print("Another instance is already running (app.lock exists) — opening its UI.")
+        try:
+            import webbrowser
+
+            webbrowser.open("http://127.0.0.1:8765")
+        except Exception:
+            pass
+        return 0
+
+    setup_logging(args.verbose)
+    quit_event = threading.Event()
+    cfg = load_config()
+    ui = WebUI(cfg)
+    ui.start()
+    tray = start_tray(ui, quit_event)
+    try:
+        while not quit_event.is_set():
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        tray.stop()
+        ui.stop()
+        release_lock()
+        log.info("Bye")
     return 0
 
 

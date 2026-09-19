@@ -44,6 +44,7 @@ def ui(tmp_path: Path, monkeypatch):
     cfg = dict(cfgmod.DEFAULTS)
     cfg["watch_folder"] = str(tmp_path)
     cfg["stability_seconds"] = 0.2
+    cfg["ionos_api_key"] = "test-key-not-used-no-api-calls"
     app = webui.WebUI(cfg, watcher=w.FolderWatcher(cfg), port=8971)
     app.start()
     yield app
@@ -141,9 +142,10 @@ def test_config_post_changes_watch_folder(ui, tmp_path: Path):
 
 
 def test_scan_enqueues_existing_pdfs(ui, tmp_path: Path):
-    (tmp_path / "a.pdf").write_bytes(b"%PDF-1.4")
-    (tmp_path / "b.pdf").write_bytes(b"%PDF-1.4")
-    # let the watchdog-triggered first pass finish (errors out: no API key)
+    (tmp_path / "c.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "d.pdf").write_bytes(b"%PDF-1.4")
+    # key is set in the fixture; watchdog picks them up and processing errors out
+    # (invalid key, no network needed) — wait until both jobs finished the pass
     _wait_until(lambda: len([j for j in ui.watcher.job_list() if j["stage"] in ("error", "done", "skipped")]) == 2)
     # second pass via the manual scan button re-enqueues both files
     status, body = _req(_base(ui.port) + "/api/scan", "POST", {})
@@ -172,3 +174,12 @@ def test_status_shows_setup_banner_flag(ui):
     ui.cfg["ionos_api_key"] = ""
     status, body = _req(_base(ui.port) + "/api/status")
     assert body["has_api_key"] is False
+
+
+def test_worker_idles_without_key(ui, tmp_path: Path):
+    ui.cfg["ionos_api_key"] = ""
+    (tmp_path / "idle.pdf").write_bytes(b"%PDF-1.4")
+    assert _wait_until(lambda: any(j["stage"] == "waiting_for_key" for j in ui.watcher.job_list()))
+    # still in idle, not failed
+    jobs = [j for j in ui.watcher.job_list() if j["name"] == "idle.pdf"]
+    assert all(j["stage"] in ("waiting_for_key", "waiting_stable") for j in jobs)

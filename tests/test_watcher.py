@@ -96,7 +96,7 @@ def test_enqueue_deduplicates(tmp_path: Path):
 def test_enqueue_requeues_after_job_finished(tmp_path: Path):
     f = tmp_path / "scan.pdf"
     f.write_bytes(b"%PDF-1.4")
-    fw = w.FolderWatcher(_cfg(tmp_path))
+    fw = w.FolderWatcher(_cfg(tmp_path), require_api_key=False)
     fw.enqueue(f)
     fw._handle(f)
     assert fw.enqueue(f) is True
@@ -144,7 +144,7 @@ def test_worker_processes_file_end_to_end(tmp_path: Path):
         processed.append(Path(path))
         return tmp_path / "processed" / "out.pdf"
 
-    fw = w.FolderWatcher(_cfg(tmp_path), process=process)
+    fw = w.FolderWatcher(_cfg(tmp_path), process=process, require_api_key=False)
     fw.start()
     try:
         fw.enqueue(f)
@@ -164,7 +164,7 @@ def test_worker_records_error_and_survives(tmp_path: Path):
     def process(path: Path):
         raise RuntimeError("boom")
 
-    fw = w.FolderWatcher(_cfg(tmp_path), process=process)
+    fw = w.FolderWatcher(_cfg(tmp_path), process=process, require_api_key=False)
     fw.start()
     try:
         fw.enqueue(f)
@@ -194,7 +194,7 @@ def test_worker_skips_already_processed(tmp_path: Path, monkeypatch):
         processed.append(Path(path))
         return path
 
-    fw = w.FolderWatcher(_cfg(tmp_path), process=process)
+    fw = w.FolderWatcher(_cfg(tmp_path), process=process, require_api_key=False)
     fw.start()
     try:
         fw.enqueue(f)
@@ -214,7 +214,8 @@ def test_worker_marks_error_on_unstable_file(tmp_path: Path):
             "watch_folder": str(tmp_path),
             "stability_seconds": 1.0,
             "stability_max_wait": 0.8,
-        }
+        },
+        require_api_key=False,
     )
     fw.start()
     try:
