@@ -137,12 +137,17 @@ class Tray:
             return False
 
     def stop(self) -> None:
-        if self.icon is not None:
-            try:
-                self.icon.stop()
-            except Exception:
-                pass
-            self.icon = None
+        icon = self.icon
+        self.icon = None
+        if icon is None:
+            return
+        try:
+            icon.stop()
+        except Exception as exc:
+            log.warning("Error stopping tray icon: %s", exc)
+        setup_thread = getattr(icon, "_setup_thread", None)
+        if setup_thread is not None and setup_thread is not threading.current_thread() and setup_thread.is_alive():
+            setup_thread.join(timeout=10)
 
 
 def start_tray(app: WebUI, quit_event: threading.Event) -> Tray:

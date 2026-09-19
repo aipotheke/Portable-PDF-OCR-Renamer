@@ -61,6 +61,18 @@ def test_setup_logging_writes_file(tmp_path: Path, monkeypatch):
 # ---- tray ------------------------------------------------------------------------
 
 def test_tray_start_fails_gracefully_headless(tmp_path: Path, monkeypatch):
+    # simulate an environment with no tray backend: pystray import fails
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_pystray(name, *args, **kwargs):
+        if name == "pystray":
+            raise ImportError("no tray backend (headless)")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_pystray)
+
     from app.webui.server import WebUI
 
     cfg = dict(cfgmod.DEFAULTS)
@@ -70,11 +82,8 @@ def test_tray_start_fails_gracefully_headless(tmp_path: Path, monkeypatch):
 
     quit_event = threading.Event()
     t = traymod.Tray(app, quit_event)
-    started = t.start()
-    if started:
-        t.stop()
-    else:
-        assert t.icon is None
+    assert t.start() is False
+    assert t.icon is None
     assert quit_event.is_set() is False
 
 
