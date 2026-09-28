@@ -1,12 +1,12 @@
 # Portable PDF OCR Renamer
 
-A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype_oldname.pdf`, embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
+A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs new PDFs with the IONOS AI Model Hub (`lightonai/LightOnOCR-2-1B`), renames files to `date_filetype[_company]_oldname.pdf` (the LLM classifier also extracts the sender company name from the letterhead), embeds the Markdown output as a PDF attachment, and shows progress in a browser UI plus a system tray icon. **No Tesseract / OCRmyPDF.**
 
 > Status: **M5 — PyInstaller build & portability**. All milestones implemented; final Windows portability test on real hardware pending.
 
 ## M1 scope
 
-- `ocr.py` — render PDF pages with pypdfium2, base64-encode, call the IONOS OCR endpoint via the `openai` client (one request per page), join page outputs; classify the document type via a text model.
+- `ocr.py` — render PDF pages with pypdfium2, base64-encode, call the IONOS OCR endpoint via the `openai` client (one request per page), join page outputs; classify the document type and extract the sender company name via a text model.
 - `rules.py` — date extraction from file creation time (`st_ctime` on Windows); processed-registry (`processed.json`) read/write to skip already-handled files.
 - `pdfops.py` — write the renamed PDF to a `processed/` subfolder, embed `ocr.md` as a PDF attachment, write a sidecar `.md` to an `md/` subfolder, atomic writes, Windows-safe filename sanitization, never overwrite existing targets.
 - `config.py` — load/save `config.json` next to the exe with sensible defaults.
@@ -58,6 +58,7 @@ A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs 
   "request_timeout": 120,
   "max_retries": 4,
   "keep_md_sidecar": true,
+  "sender_in_filename": true,
   "stability_seconds": 3.0,
   "stability_max_wait": 120.0
 }

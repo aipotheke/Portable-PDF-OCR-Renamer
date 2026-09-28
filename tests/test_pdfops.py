@@ -26,6 +26,22 @@ def test_build_target_name_format(tmp_path: Path, monkeypatch):
     assert name == "2026-09-17_invoice_Scan_0231.pdf"
 
 
+def test_build_target_name_with_sender(tmp_path: Path, monkeypatch):
+    src = tmp_path / "Scan 0231.pdf"
+    src.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr(pdfops, "extract_date", lambda p: "2026-09-17")
+    name = pdfops.build_target_name(src, "invoice", "Amazon EU")
+    assert name == "2026-09-17_invoice_Amazon_EU_Scan_0231.pdf"
+
+
+def test_build_target_name_sender_unknown_omitted(tmp_path: Path, monkeypatch):
+    src = tmp_path / "Scan 0231.pdf"
+    src.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr(pdfops, "extract_date", lambda p: "2026-09-17")
+    name = pdfops.build_target_name(src, "invoice", "unknown")
+    assert name == "2026-09-17_invoice_Scan_0231.pdf"
+
+
 def test_embed_and_write_creates_processed_and_attachment(tmp_path: Path, monkeypatch):
     src = _make_pdf(tmp_path / "scan.pdf")
     monkeypatch.setattr(pdfops, "extract_date", lambda p: "2026-09-17")
