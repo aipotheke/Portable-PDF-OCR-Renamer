@@ -114,29 +114,44 @@ def ocr_pdf(pdf_path: Path, cfg: dict[str, Any]) -> str:
     return "\n\n".join(pages)
 
 
-def classify(markdown: str, doc_types: list[str], cfg: dict[str, Any]) -> str:
-    """Classify the document into exactly one of doc_types via an LLM. Fallback 'unknown'."""
+def classify(markdown: str, doc_types: list[str], cfg: dict[str, Any]) -> tuple[str, str]:
+    """Classify the document via an LLM. Returns (doc_type, sender).
+
+    doc_type is one of doc_types (fallback 'unknown'); sender is the name of the
+    company that sent the letter/scan (empty string when none is detected).
+    """
     types = [t for t in doc_types if t and t.strip()]
     if not types:
-        return "unknown"
+        return "unknown", ""
 
     client = _make_client(cfg)
     model = cfg.get("classify_model", "mistralai/Mistral-Small-24B-Instruct")
     max_retries = int(cfg.get("max_retries", 4))
     allowed = ", ".join(types)
     prompt = (
-        "You are a document classifier. Read the OCR text and reply with exactly ONE "
-        "document type from this list (lowercase, no punctuation, no explanation):\n"
-        f"{allowed}\n\nOCR text:\n{markdown[:8000]}"
+        "You are a document classifier. Read the OCR text and answer in EXACTLY this format,\n"
+        "with nothing before or after:\n"
+        "type: <type>\n"
+        "sender: <company>\n\n"
+        "<type> is exactly ONE document type from this list (lowercase, no punctuation):\n"
+        f"{allowed}\n"
+        "<company> is the name of the company that sent the letter/scan. Look at the "
+        "letterhead, logo caption, sender address, imprint or signature block. Reply with "
+        "the company name only (no legal forms like GmbH/Inc. suffixes removed or kept, "
+        "no addresses, no explanations). If no company is identifiable, reply with: unknown\n\n"
+        f"OCR text:\n{markdown[:8000]}"
     )
 
     def call() -> str:
         resp = client.chat.completions.create(
             model=model,
             temperature=0.0,
-            max_tokens=32,
+            max_tokens=64,
             messages=[
-                {"role": "system", "content": "Reply with a single word: one of the allowed types."},
+                {
+                    "role": "system",
+                    "content": "Reply in exactly two lines: 'type: <type>' and 'sender: <company>'. No other text.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -146,16 +161,36 @@ def classify(markdown: str, doc_types: list[str], cfg: dict[str, Any]) -> str:
         answer = _retry_call(call, max_retries)
     except Exception as exc:
         log.warning("Classification call failed: %s — falling back to 'unknown'", exc)
-        return "unknown"
+        return "unknown", ""
 
     log.info("LLM classify answer: %r", answer)
     print(f"LLM classify answer: {answer!r}")
 
-    matched = match_type(answer, types)
+    matched, sender = parse_answer(answer, types)
     if matched is None:
         log.warning("Classification answer '%s' not in allowed types — fallback 'unknown'", answer)
-        return "unknown"
-    return matched
+        matched = "unknown"
+    return matched, sender
+
+
+def parse_answer(answer: str, doc_types: list[str]) -> tuple[str | None, str]:
+    """Parse the two-line LLM answer. Returns (matched type or None, sender or '')."""
+    type_answer: str | None = None
+    sender = ""
+    for line in (answer or "").splitlines():
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip().lower()
+        value = value.strip()
+        if key == "type":
+            type_answer = value
+        elif key == "sender":
+            sender = value
+    matched = match_type(type_answer or "", doc_types)
+    if sender.lower() in ("", "unknown", "none", "n/a"):
+        sender = ""
+    return matched, sender
 
 
 def match_type(answer: str, doc_types: list[str]) -> str | None:

@@ -24,12 +24,16 @@ MD_SUBDIR = "md"
 MAX_PATH_LEN = 250
 
 
-def build_target_name(source: Path, filetype: str) -> str:
-    """Build `YYYY-MM-DD_filetype_oldname.pdf` from the source file."""
+def build_target_name(source: Path, filetype: str, sender: str = "") -> str:
+    """Build `YYYY-MM-DD_filetype[_sender]_oldname.pdf` from the source file."""
     date = extract_date(source)
     ft = sanitize_name(filetype)
     stem = sanitize_name(source.stem)
-    return f"{date}_{ft}_{stem}.pdf"
+    parts = [date, ft]
+    company = sanitize_name(sender).strip(" -_")
+    if company and company.lower() not in ("unknown", "file"):
+        parts.append(company)
+    return "_".join([*parts, stem]) + ".pdf"
 
 
 def _unique_path(directory: Path, filename: str) -> Path:
@@ -68,6 +72,7 @@ def embed_and_write(
     filetype: str,
     watch_folder: Path,
     keep_md_sidecar: bool = True,
+    sender: str = "",
 ) -> Path:
     """Embed ocr.md into the source PDF and write the renamed copy to processed/.
 
@@ -76,7 +81,7 @@ def embed_and_write(
     processed_dir = Path(watch_folder) / PROCESSED_SUBDIR
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    target_name = build_target_name(source, filetype)
+    target_name = build_target_name(source, filetype, sender)
     target_name = sanitize_name(target_name)
     target = _unique_path(processed_dir, target_name)
     target = _truncate_path(target.parent, target.name)
