@@ -49,6 +49,9 @@
   <input type="text" id="watch_folder" name="watch_folder">
   <label for="doc_types">Document types (comma-separated)</label>
   <input type="text" id="doc_types" name="doc_types">
+  <label for="sender_in_filename">
+    <input type="checkbox" id="sender_in_filename" name="sender_in_filename"> Include sender company in filename
+  </label>
   <p>
     <button type="submit">Save</button>
     <span id="config-msg"></span>
@@ -94,6 +97,7 @@ async function loadConfig() {
     document.getElementById('api_key').value = savedKey;
     document.getElementById('watch_folder').value = cfg.watch_folder || '';
     document.getElementById('doc_types').value = (cfg.doc_types || []).join(', ');
+    document.getElementById('sender_in_filename').checked = !!cfg.sender_in_filename;
   } catch (e) {
     document.getElementById('config-msg').textContent = String(e);
   }
@@ -106,6 +110,7 @@ document.getElementById('config').addEventListener('submit', async ev => {
   const body = {
     watch_folder: document.getElementById('watch_folder').value.trim(),
     doc_types: document.getElementById('doc_types').value.split(',').map(s => s.trim()).filter(Boolean),
+    sender_in_filename: document.getElementById('sender_in_filename').checked,
   };
   if (keyInput && keyInput !== savedKey) body.ionos_api_key = keyInput;
   try {

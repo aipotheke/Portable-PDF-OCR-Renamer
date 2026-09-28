@@ -58,6 +58,7 @@ A single-file Windows tool (`.exe` via PyInstaller) that watches a folder, OCRs 
   "request_timeout": 120,
   "max_retries": 4,
   "keep_md_sidecar": true,
+  "sender_in_filename": true,
   "stability_seconds": 3.0,
   "stability_max_wait": 120.0
 }

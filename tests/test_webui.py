@@ -88,6 +88,15 @@ def test_config_post_persists(ui, tmp_path: Path):
     assert stored["doc_types"] == ["invoice", "receipt"]
 
 
+def test_config_post_toggles_sender_in_filename(ui, tmp_path: Path):
+    status, body = _req(_base(ui.port) + "/api/config", "POST", {"sender_in_filename": False})
+    assert status == 200
+    assert body["ok"] is True
+    assert ui.cfg["sender_in_filename"] is False
+    stored = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+    assert stored["sender_in_filename"] is False
+
+
 def test_config_post_rejects_bad_watch_folder(ui):
     status, body = _req(_base(ui.port) + "/api/config", "POST", {
         "watch_folder": "/no/such/dir/anywhere",

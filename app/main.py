@@ -52,7 +52,8 @@ def process_one(pdf_path: Path, cfg: dict | None = None) -> Path | None:
     log.info("Classified as: %s (sender: %s)", filetype, sender or "unknown")
     print(f"Classified as: {filetype} (sender: {sender or 'unknown'})")
 
-    out = pdfops.embed_and_write(pdf_path, markdown, filetype, watch_folder, keep_sidecar, sender)
+    sender_in_name = bool(cfg.get("sender_in_filename", True))
+    out = pdfops.embed_and_write(pdf_path, markdown, filetype, watch_folder, keep_sidecar, sender if sender_in_name else "")
     rules.mark_processed(pdf_path, out.name)
     log.info("Done: %s → %s", pdf_path.name, out)
     print(f"Done: {pdf_path.name} → {out}")

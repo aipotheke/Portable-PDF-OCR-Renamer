@@ -30,6 +30,7 @@ EDITABLE_KEYS = (
     "watch_folder",
     "doc_types",
     "keep_md_sidecar",
+    "sender_in_filename",
     "render_scale",
     "ocr_max_tokens",
     "ocr_temperature",

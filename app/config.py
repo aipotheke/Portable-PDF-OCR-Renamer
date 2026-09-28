@@ -21,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "request_timeout": 120,
     "max_retries": 4,
     "keep_md_sidecar": True,
+    "sender_in_filename": True,
     "stability_seconds": 3.0,
     "stability_max_wait": 120.0,
 }
